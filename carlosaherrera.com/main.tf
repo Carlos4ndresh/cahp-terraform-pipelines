@@ -1,16 +1,19 @@
 # CodePipeline resources
+locals {
+  prefix = "cahp-site"
+}
 resource "aws_s3_bucket" "build_artifact_bucket" {
-  bucket = "${var.pipeline_name}-artifact-bucket"
-  acl    = "private"
+  bucket        = "${local.prefix}-artifact-bucket"
+  acl           = "private"
   force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "block_public_access_artifact_bucket" {
   bucket = aws_s3_bucket.build_artifact_bucket.id
 
-  block_public_acls   = true
-  block_public_policy = true
-  ignore_public_acls = true
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
@@ -28,15 +31,15 @@ data "aws_iam_policy_document" "codepipeline_web_assume_policy" {
 }
 
 resource "aws_iam_role" "codepipeline_role" {
-  name               = "${var.pipeline_name}-codepipeline-role"
+  name               = "${local.prefix}-codepipeline-role"
   assume_role_policy = data.aws_iam_policy_document.codepipeline_web_assume_policy.json
 }
 
 resource "aws_iam_role_policy" "attach_codepipelineweb_policy" {
-    name = "${var.pipeline_name}-codepipeline-policy"
-    role = aws_iam_role.codepipeline_role.id
+  name = "${local.prefix}-codepipeline-policy"
+  role = aws_iam_role.codepipeline_role.id
 
-    policy = <<EOF
+  policy = <<EOF
 {
       "Statement": [
         {
@@ -68,7 +71,23 @@ resource "aws_iam_role_policy" "attach_codepipelineweb_policy" {
             ],
             "Resource": "*",
             "Effect": "Allow"
-        }
+        },
+        {          
+            "Action": [
+              "codestar-connections:GetConnection",
+              "codestar-connections:GetHost",
+              "codestar-connections:GetIndividualAccessToken",
+              "codestar-connections:GetInstallationUrl",
+              "codestar-connections:ListConnections",
+              "codestar-connections:ListHosts",
+              "codestar-connections:ListInstallationTargets",
+              "codestar-connections:ListTagsForResource",
+              "codestar-connections:PassConnection",
+              "codestar-connections:UseConnection"
+            ],
+            "Effect": "Allow",
+            "Resource": "*"
+          }
     ],
     "Version": "2012-10-17"
     }
@@ -76,7 +95,7 @@ resource "aws_iam_role_policy" "attach_codepipelineweb_policy" {
 }
 
 resource "aws_iam_role" "codebuild_assume_role" {
-  name = "${var.pipeline_name}-codebuild-role"
+  name               = "${local.prefix}-codebuild-role"
   assume_role_policy = <<EOF
 {
     "Version": "2012-10-17",
@@ -94,7 +113,7 @@ resource "aws_iam_role" "codebuild_assume_role" {
 }
 
 resource "aws_iam_role_policy" "codebuild_policy" {
-  name = "${var.pipeline_name}-codebuild-policy"
+  name = "${local.prefix}-codebuild-policy"
   role = aws_iam_role.codebuild_assume_role.id
 
   policy = <<POLICY
@@ -139,9 +158,9 @@ resource "aws_iam_role_policy" "codebuild_policy" {
 }
 
 resource "aws_codebuild_project" "build_personalweb_project" {
-  name = "${var.pipeline_name}-build"
-  description = "The CodeBuild project for ${var.pipeline_name}"
-  service_role = aws_iam_role.codebuild_assume_role.arn
+  name          = "${local.prefix}-build"
+  description   = "The CodeBuild project for ${local.prefix}"
+  service_role  = aws_iam_role.codebuild_assume_role.arn
   build_timeout = "60"
   # badge_enabled = true
 
@@ -151,44 +170,47 @@ resource "aws_codebuild_project" "build_personalweb_project" {
 
   environment {
     compute_type = "BUILD_GENERAL1_SMALL"
-    image = "aws/codebuild/standard:4.0"
-    type = "LINUX_CONTAINER"
+    image        = "aws/codebuild/standard:5.0"
+    type         = "LINUX_CONTAINER"
   }
 
   source {
-    type = "CODEPIPELINE"
+    type      = "CODEPIPELINE"
     buildspec = "wsite/buildspec.yml"
   }
 
 }
 
+resource "aws_codestarconnections_connection" "github_connection" {
+  name          = "connection"
+  provider_type = "GitHub"
+}
+
 
 resource "aws_codepipeline" "codepipeline_personalweb" {
-  name = "${var.pipeline_name}-codepipeline"
+  name     = "${local.prefix}-codepipeline"
   role_arn = aws_iam_role.codepipeline_role.arn
 
   artifact_store {
     location = aws_s3_bucket.build_artifact_bucket.bucket
-    type = "S3"
+    type     = "S3"
   }
 
   stage {
     name = "Source"
 
     action {
-      name = "Source"
-      category = "Source"
-      owner = "ThirdParty"
-      provider = "GitHub"
-      version = "1"
+      name             = "Source"
+      category         = "Source"
+      owner            = "AWS"
+      provider         = "CodeStarSourceConnection"
+      version          = "1"
       output_artifacts = ["code"]
 
       configuration = {
-        Owner = var.github_username
-        OAuthToken = var.github_token
-        Repo                 = var.github_repo
-        Branch               = "master"
-        PollForSourceChanges = "true"
+        ConnectionArn    = aws_codestarconnections_connection.github_connection.arn
+        BranchName       = "master"
+        FullRepositoryId = "Carlos4ndresh/carlosaherrera.com"
       }
     }
   }

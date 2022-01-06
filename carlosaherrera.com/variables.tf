@@ -1,7 +1,11 @@
- variable "pipeline_name" {}
+variable "github_username" {
+  default = ""
+}
 
- variable "github_username" {}
+variable "github_token" {
+  default = ""
+}
 
- variable "github_token" {}
-
- variable "github_repo" {}  
+variable "github_repo" {
+  default = ""
+}  
