@@ -2,10 +2,25 @@
 locals {
   prefix = "cahp-site"
 }
+
+resource "aws_kms_key" "s3_artifact_key" {
+  description             = "Key to encrypt artifacts in the ${local.prefix} bucket"
+  deletion_window_in_days = 10
+}
 resource "aws_s3_bucket" "build_artifact_bucket" {
   bucket        = "${local.prefix}-artifact-bucket"
   acl           = "private"
   force_destroy = true
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        kms_master_key_id = aws_kms_key.s3_artifact_key.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+
 }
 
 resource "aws_s3_bucket_public_access_block" "block_public_access_artifact_bucket" {
@@ -35,64 +50,18 @@ resource "aws_iam_role" "codepipeline_role" {
   assume_role_policy = data.aws_iam_policy_document.codepipeline_web_assume_policy.json
 }
 
-resource "aws_iam_role_policy" "attach_codepipelineweb_policy" {
-  name = "${local.prefix}-codepipeline-policy"
-  role = aws_iam_role.codepipeline_role.id
-
-  policy = <<EOF
-{
-      "Statement": [
-        {
-            "Action": [
-                "s3:GetObject",
-                "s3:GetObjectVersion",
-                "s3:GetBucketVersioning",
-                "s3:PutObject",
-                "s3:ListBucket",
-                "s3:DeleteObject"
-            ],
-            "Resource": "*",
-            "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "cloudwatch:*",
-                "sns:*",
-                "sqs:*",
-                "iam:PassRole"
-            ],
-            "Resource": "*",
-            "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "codebuild:BatchGetBuilds",
-                "codebuild:StartBuild"
-            ],
-            "Resource": "*",
-            "Effect": "Allow"
-        },
-        {          
-            "Action": [
-              "codestar-connections:GetConnection",
-              "codestar-connections:GetHost",
-              "codestar-connections:GetIndividualAccessToken",
-              "codestar-connections:GetInstallationUrl",
-              "codestar-connections:ListConnections",
-              "codestar-connections:ListHosts",
-              "codestar-connections:ListInstallationTargets",
-              "codestar-connections:ListTagsForResource",
-              "codestar-connections:PassConnection",
-              "codestar-connections:UseConnection"
-            ],
-            "Effect": "Allow",
-            "Resource": "*"
-          }
-    ],
-    "Version": "2012-10-17"
-    }
-    EOF
+resource "aws_iam_policy" "codepipeline_role_policy" {
+  name        = "CodePipeline_cahp_site_policy"
+  path        = "/"
+  description = "Policy for the ${local.prefix} site"
+  policy      = file("./files/codepipeline_policy.json")
 }
+
+resource "aws_iam_role_policy_attachment" "codepipeline_role_attach" {
+  role       = aws_iam_role.codepipeline_role.name
+  policy_arn = aws_iam_policy.codepipeline_role_policy.arn
+}
+
 
 resource "aws_iam_role" "codebuild_assume_role" {
   name               = "${local.prefix}-codebuild-role"
@@ -112,50 +81,24 @@ resource "aws_iam_role" "codebuild_assume_role" {
   EOF
 }
 
-resource "aws_iam_role_policy" "codebuild_policy" {
-  name = "${local.prefix}-codebuild-policy"
-  role = aws_iam_role.codebuild_assume_role.id
-
-  policy = <<POLICY
-{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:GetObjectVersion",
-        "s3:GetBucketVersioning",
-        "s3:ListBucket",
-        "s3:DeleteObject"
-        ],
-        "Resource": "*",
-        "Effect": "Allow"
-      },
-      {
-        "Effect": "Allow",
-        "Resource": [
-            "${aws_codebuild_project.build_personalweb_project.id}"
-        ],
-        "Action": [
-          "codebuild:*"
-        ]
-      },
-      {
-        "Effect": "Allow",
-        "Resource": [
-          "*"
-        ],
-        "Action": [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-      }
-    ]
+data "template_file" "codebuild_policy_template" {
+  template = file("./files/codebuild_policy.json.tpl")
+  vars = {
+    codebuild_project = aws_codebuild_project.build_personalweb_project.id
   }
-  POLICY
 }
+
+resource "aws_iam_policy" "codebuild_policy" {
+  policy = data.template_file.codebuild_policy_template.rendered
+  name   = "CodeBuild_cahp_site_policy"
+  path   = "/"
+}
+
+resource "aws_iam_role_policy_attachment" "codebuild_role_attachment" {
+  role       = aws_iam_role.codebuild_assume_role.name
+  policy_arn = aws_iam_policy.codebuild_policy.arn
+}
+
 
 resource "aws_codebuild_project" "build_personalweb_project" {
   name          = "${local.prefix}-build"
@@ -206,6 +149,7 @@ resource "aws_codepipeline" "codepipeline_personalweb" {
       provider         = "CodeStarSourceConnection"
       version          = "1"
       output_artifacts = ["code"]
+
 
       configuration = {
         ConnectionArn    = aws_codestarconnections_connection.github_connection.arn
