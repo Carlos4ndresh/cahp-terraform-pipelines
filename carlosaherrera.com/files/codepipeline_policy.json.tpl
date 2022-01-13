@@ -7,9 +7,14 @@
                 "s3:GetBucketVersioning",
                 "s3:PutObject",
                 "s3:ListBucket",
-                "s3:DeleteObject"
+                "s3:DeleteObject",
+                "s3:PutObjectAcl",
+                "s3:PutObject"
             ],
-            "Resource": "*",
+            "Resource": [
+                "${bucket}",
+                "${bucket}/*"
+            ],
             "Effect": "Allow"
         },
         {
@@ -27,7 +32,7 @@
                 "codebuild:BatchGetBuilds",
                 "codebuild:StartBuild"
             ],
-            "Resource": "*",
+            "Resource": "${codebuild_project}",
             "Effect": "Allow"
         },
         {
@@ -44,7 +49,31 @@
                 "codestar-connections:UseConnection"
             ],
             "Effect": "Allow",
-            "Resource": "*"
+            "Resource": "${codestar_conn}"
+        },
+        {
+            "Action": [
+                "kms:ConnectCustomKeyStore",
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "kms:GetParametersForImport",
+                "kms:GenerateDataKey",
+                "kms:GetPublicKey",
+                "kms:ListAliases",
+                "kms:ListKeyPolicies",
+                "kms:ListKeys",
+                "kms:ListResourceTags",
+                "kms:ReEncryptFrom",
+                "kms:ReEncryptTo",
+                "kms:TagResource",
+                "kms:UntagResource",
+                "kms:Verify"
+            ],
+            "Effect": "Allow",
+            "Resource": "${key}"
         }
     ],
     "Version": "2012-10-17"

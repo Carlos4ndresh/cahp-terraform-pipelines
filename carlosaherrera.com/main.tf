@@ -54,12 +54,22 @@ resource "aws_iam_policy" "codepipeline_role_policy" {
   name        = "CodePipeline_cahp_site_policy"
   path        = "/"
   description = "Policy for the ${local.prefix} site"
-  policy      = file("./files/codepipeline_policy.json")
+  policy      = data.template_file.codepipeline_policy_template.rendered
 }
 
 resource "aws_iam_role_policy_attachment" "codepipeline_role_attach" {
   role       = aws_iam_role.codepipeline_role.name
   policy_arn = aws_iam_policy.codepipeline_role_policy.arn
+}
+
+data "template_file" "codepipeline_policy_template" {
+  template = file("./files/codepipeline_policy.json.tpl")
+  vars = {
+    bucket            = aws_s3_bucket.build_artifact_bucket.arn
+    codebuild_project = aws_codebuild_project.build_personalweb_project.arn
+    codestar_conn     = aws_codestarconnections_connection.github_connection.arn
+    key               = aws_kms_key.s3_artifact_key.arn
+  }
 }
 
 
@@ -84,7 +94,10 @@ resource "aws_iam_role" "codebuild_assume_role" {
 data "template_file" "codebuild_policy_template" {
   template = file("./files/codebuild_policy.json.tpl")
   vars = {
-    codebuild_project = aws_codebuild_project.build_personalweb_project.id
+    bucket            = aws_s3_bucket.build_artifact_bucket.arn
+    codebuild_project = aws_codebuild_project.build_personalweb_project.arn
+    codestar_conn     = aws_codestarconnections_connection.github_connection.arn
+    key               = aws_kms_key.s3_artifact_key.arn
   }
 }
 
