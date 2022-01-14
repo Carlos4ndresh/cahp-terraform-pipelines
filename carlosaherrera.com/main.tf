@@ -3,6 +3,10 @@ locals {
   prefix = "cahp-site"
 }
 
+data "aws_ssm_parameter" "bucket_website" {
+  name = "/production/websites/carlosaherrera.com/bucket_name"
+}
+
 resource "aws_kms_key" "s3_artifact_key" {
   description             = "Key to encrypt artifacts in the ${local.prefix} bucket"
   deletion_window_in_days = 10
@@ -98,6 +102,7 @@ data "template_file" "codebuild_policy_template" {
     codebuild_project = aws_codebuild_project.build_personalweb_project.arn
     codestar_conn     = aws_codestarconnections_connection.github_connection.arn
     key               = aws_kms_key.s3_artifact_key.arn
+    website_bucket    = data.aws_ssm_parameter.bucket_website.value
   }
 }
 

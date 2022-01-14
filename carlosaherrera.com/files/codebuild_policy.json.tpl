@@ -14,7 +14,9 @@
             ],
             "Resource": [
                 "${bucket}",
-                "${bucket}/*"
+                "${bucket}/*",
+                "${website_bucket}",
+                "${website_bucket}/*"
             ],
             "Effect": "Allow"
         },
