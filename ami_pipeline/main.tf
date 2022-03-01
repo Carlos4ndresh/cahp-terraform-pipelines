@@ -1,6 +1,9 @@
+## GitHub Connection Stuff
 data "aws_codestarconnections_connection" "github_connection" {
   arn = "arn:aws:codestar-connections:us-east-1:982656938909:connection/633ca6f5-e69f-439a-b3fb-6556533ff285"
 }
+
+## IAM Stuff
 
 data "aws_iam_policy_document" "codepipeline_ami_assume_policy" {
   statement {
@@ -14,11 +17,61 @@ data "aws_iam_policy_document" "codepipeline_ami_assume_policy" {
   }
 }
 
+data "template_file" "codepipeline_policy_template" {
+  template = file("./files/codepipeline_policy.json.tpl")
+  vars = {
+    bucket            = aws_s3_bucket.ami_pipeline_artifact_store.arn
+    codebuild_project = aws_codebuild_project.build_ami_packer.arn
+    codestar_conn     = data.aws_codestarconnections_connection.github_connection.arn
+  }
+}
+
+resource "aws_iam_policy" "codepipeline_role_policy" {
+  name        = "CodePipeline_ami_pipeline_policy"
+  path        = "/"
+  description = "Policy for the ami pipeline"
+  policy      = data.template_file.codepipeline_policy_template.rendered
+}
+
+resource "aws_iam_role_policy_attachment" "codepipeline_role_attach" {
+  role       = aws_iam_role.codepipeline_role.name
+  policy_arn = aws_iam_policy.codepipeline_role_policy.arn
+}
+
+
 resource "aws_iam_role" "codepipeline_role" {
   name               = "ami-packer-codepipeline-role"
   assume_role_policy = data.aws_iam_policy_document.codepipeline_ami_assume_policy.json
 }
 
+data "aws_iam_policy_document" "codebuild_ami_assume_policy" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["codebuild.amazonaws.com"]
+    }
+  }
+}
+
+data "template_file" "codebuild_policy_template" {
+  template = file("./files/codebuild_policy.json.tpl")
+  vars = {
+    bucket            = aws_s3_bucket.ami_pipeline_artifact_store.arn
+    codebuild_project = aws_codebuild_project.build_ami_packer.arn
+    codestar_conn     = data.aws_codestarconnections_connection.github_connection.arn
+  }
+}
+
+resource "aws_iam_role" "codebuild_assume_role" {
+  name               = "ami-packer-codebuild-role"
+  assume_role_policy = data.aws_iam_policy_document.codebuild_ami_assume_policy.json
+}
+
+
+# Actual Useful stuff
 resource "aws_s3_bucket" "ami_pipeline_artifact_store" {
   bucket        = "ami-packer-pipeline-artifact-store"
   acl           = "private"
@@ -66,6 +119,44 @@ resource "aws_codepipeline" "ami_pipeline" {
       }
 
     }
+  }
+
+  stage {
+    name = "Build_AMI"
+    action {
+      name            = "Build_AMI"
+      owner           = "AWS"
+      provider        = "CodeBuild"
+      category        = "Build"
+      input_artifacts = ["source_output"]
+      version         = "1"
+      configuration = {
+        "ProjectName" = aws_codebuild_project.build_ami_packer.name
+      }
+    }
+  }
+
+}
+
+resource "aws_codebuild_project" "build_ami_packer" {
+  name          = "ami-packer-build"
+  description   = "The CodeBuild project to build packer AMIs"
+  service_role  = aws_iam_role.codebuild_assume_role.arn
+  build_timeout = "60"
+
+  artifacts {
+    type = "CODEPIPELINE"
+  }
+
+  environment {
+    compute_type = "BUILD_GENERAL1_SMALL"
+    image        = "aws/codebuild/standard:5.0"
+    type         = "LINUX_CONTAINER"
+  }
+
+  source {
+    type      = "CODEPIPELINE"
+    buildspec = "buildspec.yml"
   }
 
 }
