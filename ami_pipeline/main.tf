@@ -70,6 +70,18 @@ resource "aws_iam_role" "codebuild_assume_role" {
   assume_role_policy = data.aws_iam_policy_document.codebuild_ami_assume_policy.json
 }
 
+resource "aws_iam_policy" "codebuild_role_policy" {
+  name        = "CodeBuild_ami_pipeline_policy"
+  path        = "/"
+  description = "Policy for the codebuild ami project"
+  policy      = data.template_file.codebuild_policy_template.rendered
+}
+
+resource "aws_iam_role_policy_attachment" "allow_codebuild_do_stuff" {
+  role       = aws_iam_role.codebuild_assume_role.name
+  policy_arn = aws_iam_policy.codebuild_role_policy.arn
+}
+
 
 # Actual Useful stuff
 resource "aws_s3_bucket" "ami_pipeline_artifact_store" {

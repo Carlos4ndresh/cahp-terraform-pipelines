@@ -1,7 +1,7 @@
 {
   "Version": "2012-10-17",
   "Statement": [
-      {
+        {
             "Action": [
                 "s3:GetObject",
                 "s3:GetObjectVersion",
@@ -14,10 +14,10 @@
             ],
             "Resource": [
                 "${bucket}",
-                "${bucket}/*",
+                "${bucket}/*"
             ],
             "Effect": "Allow"
-        },     
+        },                  
         {
             "Action": [
                 "codebuild:*"
@@ -37,28 +37,12 @@
                 "logs:CreateLogStream",
                 "logs:PutLogEvents"
             ]
-        },
-        {
-            "Action": [
-                "codestar-connections:GetConnection",
-                "codestar-connections:GetHost",
-                "codestar-connections:GetIndividualAccessToken",
-                "codestar-connections:GetInstallationUrl",
-                "codestar-connections:ListConnections",
-                "codestar-connections:ListHosts",
-                "codestar-connections:ListInstallationTargets",
-                "codestar-connections:ListTagsForResource",
-                "codestar-connections:PassConnection",
-                "codestar-connections:UseConnection"
-            ],
-            "Effect": "Allow",
-            "Resource": "${codestar_conn}"
         },         
     {
       "Sid": "EBSThings",
       "Action": "ebs:*",
       "Effect": "Allow",
-      "Resource": "*",
+      "Resource": ["*"],
       "Condition": {
           "StringEquals": {
               "ec2:AuthorizedService": "codebuild.amazonaws.com"
@@ -185,7 +169,7 @@
         "ec2:UnmonitorInstances"
       ],
       "Effect": "Allow",
-      "Resource": "*",
+      "Resource": ["*"],
       "Condition": {
           "StringEquals": {
               "ec2:AuthorizedService": "codebuild.amazonaws.com"
