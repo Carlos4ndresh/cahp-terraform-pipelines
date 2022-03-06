@@ -1,7 +1,7 @@
 terraform {
   backend "s3" {
     bucket         = "terraform-projects-state"
-    key            = "demo/ami_packercahp_site_pipeline.tfstate"
+    key            = "demo/ami_packer_pipeline.tfstate"
     region         = "us-east-2"
     dynamodb_table = "terraform-state-lock-table"
   }
