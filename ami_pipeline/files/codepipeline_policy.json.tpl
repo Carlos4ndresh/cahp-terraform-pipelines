@@ -32,7 +32,10 @@
                 "codebuild:BatchGetBuilds",
                 "codebuild:StartBuild"
             ],
-            "Resource": "${codebuild_project}",
+            "Resource": [
+                "${codebuild_project}",
+                "${codebuild_test_project}"
+            ],
             "Effect": "Allow"
         },
         {

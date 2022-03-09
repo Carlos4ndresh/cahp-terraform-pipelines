@@ -20,9 +20,10 @@ data "aws_iam_policy_document" "codepipeline_ami_assume_policy" {
 data "template_file" "codepipeline_policy_template" {
   template = file("./files/codepipeline_policy.json.tpl")
   vars = {
-    bucket            = aws_s3_bucket.ami_pipeline_artifact_store.arn
-    codebuild_project = aws_codebuild_project.build_ami_packer.arn
-    codestar_conn     = data.aws_codestarconnections_connection.github_connection.arn
+    bucket                 = aws_s3_bucket.ami_pipeline_artifact_store.arn
+    codebuild_project      = aws_codebuild_project.build_ami_packer.arn
+    codebuild_test_project = aws_codebuild_project.validate_packer_build.arn
+    codestar_conn          = data.aws_codestarconnections_connection.github_connection.arn
   }
 }
 
