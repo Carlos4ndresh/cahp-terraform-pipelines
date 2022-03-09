@@ -59,9 +59,10 @@ data "aws_iam_policy_document" "codebuild_ami_assume_policy" {
 data "template_file" "codebuild_policy_template" {
   template = file("./files/codebuild_policy.json.tpl")
   vars = {
-    bucket            = aws_s3_bucket.ami_pipeline_artifact_store.arn
-    codebuild_project = aws_codebuild_project.build_ami_packer.arn
-    codestar_conn     = data.aws_codestarconnections_connection.github_connection.arn
+    bucket                 = aws_s3_bucket.ami_pipeline_artifact_store.arn
+    codebuild_project      = aws_codebuild_project.build_ami_packer.arn
+    codebuild_test_project = aws_codebuild_project.validate_packer_build.arn
+    codestar_conn          = data.aws_codestarconnections_connection.github_connection.arn
   }
 }
 
@@ -81,7 +82,6 @@ resource "aws_iam_role_policy_attachment" "allow_codebuild_do_stuff" {
   role       = aws_iam_role.codebuild_assume_role.name
   policy_arn = aws_iam_policy.codebuild_role_policy.arn
 }
-
 
 # Actual Useful stuff
 resource "aws_s3_bucket" "ami_pipeline_artifact_store" {
@@ -134,6 +134,21 @@ resource "aws_codepipeline" "ami_pipeline" {
   }
 
   stage {
+    name = "Test_Build"
+    action {
+      category        = "Test"
+      name            = "ValidatePackerBuild"
+      owner           = "AWS"
+      provider        = "CodeBuild"
+      version         = "1"
+      input_artifacts = ["source_output"]
+      configuration = {
+        "ProjectName" = aws_codebuild_project.validate_packer_build.name
+      }
+    }
+  }
+
+  stage {
     name = "Build_AMI"
     action {
       name            = "Build_AMI"
@@ -146,6 +161,29 @@ resource "aws_codepipeline" "ami_pipeline" {
         "ProjectName" = aws_codebuild_project.build_ami_packer.name
       }
     }
+  }
+
+}
+
+resource "aws_codebuild_project" "validate_packer_build" {
+  name          = "packer-validate-build"
+  description   = "The CodeBuild project to validate build packer AMIs"
+  service_role  = aws_iam_role.codebuild_assume_role.arn
+  build_timeout = "60"
+
+  artifacts {
+    type = "CODEPIPELINE"
+  }
+
+  environment {
+    compute_type = "BUILD_GENERAL1_SMALL"
+    image        = "aws/codebuild/standard:5.0"
+    type         = "LINUX_CONTAINER"
+  }
+
+  source {
+    type      = "CODEPIPELINE"
+    buildspec = "test/buildspec_test.yml"
   }
 
 }

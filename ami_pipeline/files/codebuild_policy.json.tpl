@@ -24,7 +24,8 @@
             ],
             "Effect": "Allow",
             "Resource": [
-                "${codebuild_project}"
+                "${codebuild_project}",
+                "${codebuild_test_project}"
             ]
         },
         {
