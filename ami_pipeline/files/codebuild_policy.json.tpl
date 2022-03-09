@@ -52,6 +52,12 @@
       ],
       "Effect": "Allow",
       "Resource": ["*"]
+    },
+    {
+        "Sid": "SSMParameters",
+        "Action": ["ssm:GetParameters"],
+        "Effect": "Allow",
+        "Resource": ["*"]
     }
   ]
 }
